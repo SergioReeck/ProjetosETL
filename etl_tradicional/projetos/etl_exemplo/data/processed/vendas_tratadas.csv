@@ -1,0 +1,5 @@
+id_venda,produto,quantidade,preco_unitario,valor_total
+1,Notebook,2,3500.0,7000.0
+2,Mouse,5,80.0,400.0
+3,Teclado,3,150.0,450.0
+5,Monitor,2,900.0,1800.0
