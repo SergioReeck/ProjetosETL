@@ -1,6 +1,7 @@
 import pandas as pd
 from config import engine_dw
 
+
 def processar_gold():
     print("Processando camada Gold (Load)...")
 
@@ -91,3 +92,4 @@ def processar_gold():
     )
 
     print("Gold carregada.")
+    

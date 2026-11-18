@@ -1,5 +1,9 @@
-import pandas as pd
-from config import engine_erp, engine_dw
+from utils import extrair_dados, gravar_bronze, importar_modulo
+
+config = importar_modulo("00_config.py", "config")
+
+engine_erp = config.engine_erp
+engine_dw = config.engine_dw
 
 # ---------- SQL Query ---------- # 
 
@@ -56,55 +60,17 @@ LEFT JOIN rh.cargos c
 def extracao_bd_loja_brasil():
     print("Extraindo dados do banco de dados LOJA BRASIL...")
 
-    print("Extração da tabela de vendas")
-    df_vendas = pd.read_sql(sql_vendas, engine_erp)
+    tabelas = [
+        ("vendas", sql_vendas, "loja_brasil_vendas"),
+        ("clientes", sql_clientes, "loja_brasil_clientes"),
+        ("produtos", sql_produtos, "loja_brasil_produtos"),
+        ("vendedores", sql_vendedores, "loja_brasil_vendedores"),
+    ]
 
-    df_vendas.to_sql(
-        "loja_brasil_vendas",
-        engine_dw,
-        schema="bronze",
-        if_exists="replace",
-        index=False
-    )
-
-
-    print("Extração da tabela de clientes")
-    df_clientes = pd.read_sql(sql_clientes, engine_erp)
-
-    df_clientes.to_sql(
-        "loja_brasil_clientes",
-        engine_dw,
-        schema="bronze",
-        if_exists="replace",
-        index=False
-    )
-
-
-    print("Extração da tabela de produtos")
-    df_produtos = pd.read_sql(sql_produtos, engine_erp)
-
-    df_produtos.to_sql(
-        "loja_brasil_produtos",
-        engine_dw,
-        schema="bronze",
-        if_exists="replace",
-        index=False
-    )
-
-
-    print("Extração da tabela de vendedores")
-    df_vendedores = pd.read_sql(sql_vendedores, engine_erp)
-
-    df_vendedores.to_sql(
-        "loja_brasil_vendedores",
-        engine_dw,
-        schema="bronze",
-        if_exists="replace",
-        index=False
-    )
-
-
-    del df_vendas, df_clientes, df_produtos, df_vendedores
+    for descricao, query_sql, nome_tabela in tabelas:
+        print(f"Extração da tabela de {descricao}")
+        df = extrair_dados(query_sql, engine_erp)
+        gravar_bronze(df, nome_tabela, engine_dw)
 
     print("Extração do banco de dados LOJA BRASIL concluída.")
     print("Dados gravados na camada BRONZE.")

@@ -1,5 +1,10 @@
 from sqlalchemy import text
-from config import engine_dw
+from utils import importar_modulo
+
+config = importar_modulo("00_config.py", "config")
+
+engine_dw = config.engine_dw
+
 
 def configurar_dw():
     print("Configurando o Data Warehouse...")
@@ -10,4 +15,3 @@ def configurar_dw():
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS gold"))
 
     print("Schemas do DW criados.")
-

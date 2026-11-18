@@ -1,7 +1,12 @@
 import pandas as pd
-from config import engine_dw
+from utils import importar_modulo
 
-def processar_silver():
+config = importar_modulo("00_config.py", "config")
+
+engine_dw = config.engine_dw
+
+
+def transformacao_silver():
     print("Iniciando processamento (transformação) da Silver...")
 
     # ========================================
@@ -22,7 +27,6 @@ def processar_silver():
         "SELECT * FROM bronze.metas_vendas",
         engine_dw
     )
-
 
     print("Captura de dados da Bronze para DataFrames concluída.")
 
