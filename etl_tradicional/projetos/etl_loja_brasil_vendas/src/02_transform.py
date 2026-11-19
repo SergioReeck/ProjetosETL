@@ -1,5 +1,5 @@
 import pandas as pd
-from utils import importar_modulo
+from utils import gravar_dados, importar_modulo
 
 config = importar_modulo("00_config.py", "config")
 
@@ -14,20 +14,30 @@ def transformacao_silver():
     # ========================================
     
     df_vendas = pd.read_sql(
-        "SELECT * FROM bronze.erp_vendas",
+        "SELECT * FROM bronze.loja_brasil_vendas",
         engine_dw
     )
 
-    df_ibge = pd.read_sql(
-        "SELECT * FROM bronze.ibge_municipios",
+    df_clientes = pd.read_sql(
+        "SELECT * FROM bronze.loja_brasil_clientes",
         engine_dw
     )
 
-    df_metas = pd.read_sql(
-        "SELECT * FROM bronze.metas_vendas",
+    df_municipios = pd.read_sql(
+        "SELECT cidade, estado, mesorregiao FROM bronze.api_ibge_municipios",
         engine_dw
     )
 
+    df_produtos = pd.read_sql(
+        "SELECT * FROM bronze.loja_brasil_produtos",
+        engine_dw
+    )
+
+    df_vendedores = pd.read_sql(
+        "SELECT * FROM bronze.loja_brasil_vendedores",
+        engine_dw
+    )
+    
     print("Captura de dados da Bronze para DataFrames concluída.")
 
     # ========================================
@@ -36,8 +46,6 @@ def transformacao_silver():
 
     # Conversão de datas
     df_vendas["data_pedido"] = pd.to_datetime(df_vendas["data_pedido"])
-    df_vendas["ano"] = df_vendas["data_pedido"].dt.year
-    df_vendas["mes"] = df_vendas["data_pedido"].dt.month
 
     # Cálculos
     df_vendas["valor_item"] = (
@@ -52,66 +60,34 @@ def transformacao_silver():
     ].copy()
 
     # Padronização
-    df_vendas["cidade"] = df_vendas["cidade"].str.strip()
-    df_ibge["cidade"] = df_ibge["cidade"].str.strip()
+    df_clientes["cidade"] = df_clientes["cidade"].str.strip()
+    df_clientes["estado"] = df_clientes["estado"].str.upper()
 
-    df_vendas["estado"] = df_vendas["estado"].str.upper()
-    df_ibge["estado"] = df_ibge["estado"].str.upper()
+    df_municipios["cidade"] = df_municipios["cidade"].str.strip()
+    df_municipios["estado"] = df_municipios["estado"].str.upper()
 
-
-    # ========================================
-    # União de DataFrames
-    # ========================================
-    
-    df_vendas = df_vendas.merge(
-        df_ibge,
+    df_clientes = df_clientes.merge(
+        df_municipios[["cidade", "estado", "mesorregiao"]],
         on=["cidade", "estado"],
         how="left"
-    )
-
-    df_vendas = df_vendas.merge(
-        df_metas,
-        on=["ano", "mes", "estado"],
-        how="left"
-    )
-
-    # Validações
-    print("Sem correspondência IBGE:",
-        df_vendas["id_ibge"].isna().sum())
-    print("Sem correspondência de meta:",
-        df_vendas["meta_vendas"].isna().sum())
-
-    # ========================================
-    # Gravando vendas_tratadas na camada Silver
-    # ========================================
-    df_vendas.to_sql(
-        "vendas_tratadas",
-        engine_dw,
-        schema="silver",
-        if_exists="replace",
-        index=False
+        
     )
 
     # ========================================
-    # Gravando municipios na camada Silver
+    # Gravando dados na camada Silver
     # ========================================
-    df_ibge.to_sql(
-        "municipios",
-        engine_dw,
-        schema="silver",
-        if_exists="replace",
-        index=False
-    )
-
-    # ========================================
-    # Gravando metas_vendas na camada Silver
-    # ========================================
-    df_metas.to_sql(
-        "metas_vendas",
-        engine_dw,
-        schema="silver",
-        if_exists="replace",
-        index=False
-    )
+    
+    tabelas = {
+            "vendas": (df_vendas, "loja_brasil_vendas"),
+            "clientes": (df_clientes, "loja_brasil_clientes"),
+            "produtos": (df_produtos, "loja_brasil_produtos"),
+            "vendedores": (df_vendedores, "loja_brasil_vendedores"),
+    }
+    
+    camada = "silver"
+    
+    for nome, (df, nome_tabela) in tabelas.items():
+        print(f"Gravando dados da tabela silver.{nome}")
+        gravar_dados(df, nome_tabela, engine_dw, camada)
 
     print("Silver carregada.")

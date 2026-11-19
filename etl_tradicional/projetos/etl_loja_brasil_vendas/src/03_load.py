@@ -1,5 +1,10 @@
 import pandas as pd
-from config import engine_dw
+
+from utils import gerar_dim_calendario, gravar_dados, importar_modulo
+
+config = importar_modulo("00_config.py", "config")
+
+engine_dw = config.engine_dw
 
 
 def processar_gold():
@@ -10,86 +15,69 @@ def processar_gold():
     # ========================================
 
     df_vendas = pd.read_sql(
-        "SELECT * FROM silver.vendas_tratadas",
+        "SELECT * FROM silver.loja_brasil_vendas",
         engine_dw
     )
 
-    df_ibge = pd.read_sql(
-        "SELECT * FROM silver.municipios",
+    df_clientes = pd.read_sql(
+        "SELECT * FROM silver.loja_brasil_clientes",
         engine_dw
     )
 
-    df_metas = pd.read_sql(
-        "SELECT * FROM silver.metas_vendas",
+    df_produtos = pd.read_sql(
+        "SELECT * FROM silver.loja_brasil_produtos",
+        engine_dw
+    )
+
+    df_vendedores = pd.read_sql(
+        "SELECT * FROM silver.loja_brasil_vendedores",
         engine_dw
     )
 
     # ========================================
-    # Criação de DataFrames analíticos
+    # Enriquecimento de datas
+    # ========================================
+
+    df_vendas["data_pedido"] = pd.to_datetime(df_vendas["data_pedido"]).dt.normalize()
+    data_inicio = df_vendas["data_pedido"].min()
+    data_fim = df_vendas["data_pedido"].max()
+
+    # Gerar dimensão calendário
+    df_calendario = gerar_dim_calendario(data_inicio, data_fim)
+
+    # Vincular a dimensão calendário com a tabela de vendas
+    df_vendas["sk_data"] = df_vendas["data_pedido"].dt.strftime("%Y%m%d").astype("int64")
+
+    df_vendas = df_vendas.drop(columns=["data_pedido"])
+
+    # ========================================
+    # Criação de DataFrames fatos e dimensões
     # ========================================
 
     df_fato = df_vendas[
         [
-            "id_pedido", "data_pedido", "id_cliente", "cliente",
-            "cidade", "estado", "id_ibge", "id_produto",
-            "produto", "categoria", "marca", "quantidade",
-            "preco_unitario", "desconto", "valor_item"
+            "id_pedido", "id_produto", "id_cliente", "sk_data",
+            "id_vendedor", "quantidade", "preco_unitario", "desconto", "valor_item"
         ]
     ].copy()
 
-    df_municipios = df_ibge[
-        [
-            "id_ibge", "cidade", "estado", "regiao",
-            "mesorregiao", "microrregiao",
-            "regiao_imediata", "regiao_intermediaria"
-        ]
-    ].copy()
-
-    df_resumo = (
-        df_vendas
-        .groupby(
-            ["ano", "mes", "estado", "meta_vendas"],
-            as_index=False
-        )["valor_item"]
-        .sum()
-        .rename(columns={"valor_item": "vendas_realizadas"})
-    )
-
-    df_resumo["percentual_atingimento"] = (
-        df_resumo["vendas_realizadas"]
-        / df_resumo["meta_vendas"]
-        * 100
-    ).round(2)
-
-    df_resumo["situacao_meta"] = df_resumo[
-        "percentual_atingimento"
-    ].apply(
-        lambda x: "Meta atingida" if x >= 100 else "Meta não atingida"
-    )
-
     # ========================================
-    # Carregando dos DataFrames na camada Gold
+    # Carregando dados na camada Gold
     # ========================================
 
-    df_fato.to_sql(
-        "fato_vendas", engine_dw,
-        schema="gold", if_exists="replace", index=False
-    )
-
-    df_municipios.to_sql(
-        "dim_municipios", engine_dw,
-        schema="gold", if_exists="replace", index=False
-    )
-
-    df_metas.to_sql(
-        "metas_vendas", engine_dw,
-        schema="gold", if_exists="replace", index=False
-    )
-
-    df_resumo.to_sql(
-        "fato_metas_mensais", engine_dw,
-        schema="gold", if_exists="replace", index=False
-    )
-
+    tabelas = {
+        "vendas": (df_fato, "fato_vendas"),
+        "clientes": (df_clientes, "dim_clientes"),
+        "produtos": (df_produtos, "dim_produtos"),
+        "vendedores": (df_vendedores, "dim_vendedores"),
+        "calendario": (df_calendario, "dim_calendario")
+    }
+        
+    camada = "gold"
+        
+    for nome, (df, nome_tabela) in tabelas.items():
+        print(f"Gravando dados da tabela gold.{nome}")
+        gravar_dados(df, nome_tabela, engine_dw, camada)
+    
     print("Gold carregada.")
     
