@@ -69,8 +69,7 @@ def transformacao_silver():
     df_clientes = df_clientes.merge(
         df_municipios[["cidade", "estado", "mesorregiao"]],
         on=["cidade", "estado"],
-        how="left"
-        
+        how="left"    
     )
 
     # ========================================

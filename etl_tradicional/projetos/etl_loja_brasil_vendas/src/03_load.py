@@ -1,5 +1,4 @@
 import pandas as pd
-
 from utils import gerar_dim_calendario, gravar_dados, importar_modulo
 
 config = importar_modulo("00_config.py", "config")
